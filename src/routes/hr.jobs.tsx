@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Plus, ExternalLink, Copy, Check, Users, ChevronRight } from "lucide-react";
+import { Plus, ExternalLink, Copy, Check, Users, ChevronRight, Pencil } from "lucide-react";
 import { authFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -18,11 +18,12 @@ interface JobPost {
   application_url: string;
   created_at: string;
 }
+
 interface Application {
   id: number;
   first_name: string;
   last_name: string;
-  full_name: string;  
+  full_name: string;
   email: string;
   phone: string;
   dob: string;
@@ -45,6 +46,7 @@ async function getJobs(token: string): Promise<JobPost[]> {
   const data = await res.json();
   return data.data;
 }
+
 export const Route = createFileRoute("/hr/jobs")({
   head: () => ({ meta: [{ title: "Jobs — OTIC" }] }),
   loader: async (): Promise<{ jobs: JobPost[] }> => {
@@ -71,23 +73,25 @@ function Jobs() {
   const [jobs, setJobs] = useState<JobPost[]>(initial);
   const [showModal, setShowModal] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [editingJob, setEditingJob] = useState<JobPost | null>(null);
   const token = localStorage.getItem("access_token") ?? "";
 
- const handleOpen = async (id: number) => {
-  const res = await authFetch(`${API}/jobs/${id}/open/`, { method: "POST" });
-  const data = await res.json();
-  if (data.success) {
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: "open" as const } : j)));
-  }
-};
+  const handleOpen = async (id: number) => {
+    const res = await authFetch(`${API}/jobs/${id}/open/`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: "open" as const } : j)));
+    }
+  };
 
-const handleClose = async (id: number) => {
-  const res = await authFetch(`${API}/jobs/${id}/close/`, { method: "POST" });
-  const data = await res.json();
-  if (data.success) {
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: "closed" as const } : j)));
-  }
-};
+  const handleClose = async (id: number) => {
+    const res = await authFetch(`${API}/jobs/${id}/close/`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: "closed" as const } : j)));
+    }
+  };
+
   const grouped = jobs.reduce<Record<string, JobPost[]>>((acc, job) => {
     const dept = job.department || "Other";
     if (!acc[dept]) acc[dept] = [];
@@ -139,7 +143,7 @@ const handleClose = async (id: number) => {
                     <th className="px-5 py-3 font-medium">Applicants</th>
                     <th className="px-5 py-3 font-medium">Application link</th>
                     <th className="px-5 py-3" />
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody>
                   {deptJobs.map((job) => {
@@ -178,6 +182,15 @@ const handleClose = async (id: number) => {
                         </td>
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Edit button — always visible */}
+                            <button
+                              onClick={() => setEditingJob(job)}
+                              className="rounded-md border border-border bg-card p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              title="Edit job"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+
                             {job.status === "draft" && (
                               <button
                                 onClick={() => handleOpen(job.id)}
@@ -187,21 +200,21 @@ const handleClose = async (id: number) => {
                               </button>
                             )}
                             {job.status === "open" && (
-  <button
-    onClick={() => handleClose(job.id)}
-    className="rounded-md border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-  >
-    Close
-  </button>
-)}
-{job.status === "closed" && (
-  <button
-    onClick={() => handleOpen(job.id)}
-    className="rounded-md border border-success/30 px-3 py-1 text-xs font-medium text-success hover:bg-success/10"
-  >
-    Reopen
-  </button>
-)}
+                              <button
+                                onClick={() => handleClose(job.id)}
+                                className="rounded-md border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+                              >
+                                Close
+                              </button>
+                            )}
+                            {job.status === "closed" && (
+                              <button
+                                onClick={() => handleOpen(job.id)}
+                                className="rounded-md border border-success/30 px-3 py-1 text-xs font-medium text-success hover:bg-success/10"
+                              >
+                                Reopen
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -233,6 +246,17 @@ const handleClose = async (id: number) => {
           onClose={() => setSelectedJobId(null)}
         />
       )}
+
+      {editingJob && (
+        <EditJobModal
+          job={editingJob}
+          onClose={() => setEditingJob(null)}
+          onUpdated={(updated) => {
+            setJobs((prev) => prev.map((j) => (j.id === updated.id ? updated : j)));
+            setEditingJob(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -242,7 +266,7 @@ function CopyLink({ url }: { url: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="font-mono text-xs text-muted-foreground truncate max-w-[180px]">
-        {url.replace("http://localhost:3000", "")}
+        {url.replace("https://screening.oticgs.com", "")}
       </span>
       <button
         onClick={() => {
@@ -309,10 +333,10 @@ function NewJobModal({
     setError(null);
     try {
       const res = await authFetch(`${API}/jobs/`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ ...form, screening_questions: selectedQuestions }),
-});
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, screening_questions: selectedQuestions }),
+      });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       onCreated(data.data);
@@ -332,7 +356,6 @@ function NewJobModal({
         className="w-full max-w-lg rounded-lg border border-border bg-card shadow-elevated"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">
           <div>
             <h2 className="font-display text-lg font-semibold">Post a new job</h2>
@@ -340,12 +363,9 @@ function NewJobModal({
               Step {step} of 2 — {step === 1 ? "Job details" : "Screening questions"}
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            ✕
-          </button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
-        {/* Step 1 — Job details */}
         {step === 1 && (
           <div className="space-y-4 p-5">
             <div>
@@ -370,105 +390,61 @@ function NewJobModal({
                 className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2"
               >
                 <option value="">Select department…</option>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
+                {DEPARTMENTS.map((d) => <option key={d}>{d}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Description
-              </label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">Description</label>
+              <textarea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)}
                 placeholder="What is this role about?"
-                className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2"
-              />
+                className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2" />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Requirements
-              </label>
-              <textarea
-                rows={4}
-                value={form.requirements}
-                onChange={(e) => set("requirements", e.target.value)}
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">Requirements</label>
+              <textarea rows={4} value={form.requirements} onChange={(e) => set("requirements", e.target.value)}
                 placeholder="List the requirements for this role…"
-                className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2"
-              />
+                className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2" />
             </div>
           </div>
         )}
 
-        {/* Step 2 — Screening questions */}
         {step === 2 && (
           <div className="p-5">
             <p className="mb-4 text-sm text-muted-foreground">
               Select which screening questions to include on the application form.
-              All are optional for candidates.
             </p>
             <div className="space-y-2">
               {SCREENING_QUESTIONS.map(({ key, label }) => (
-                <label
-                  key={key}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 transition-colors",
-                    selectedQuestions.includes(key)
-                      ? "border-navy bg-navy/5"
-                      : "border-border hover:border-navy/40",
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedQuestions.includes(key)}
-                    onChange={() => toggleQuestion(key)}
-                    className="accent-navy"
-                  />
+                <label key={key} className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 transition-colors",
+                  selectedQuestions.includes(key) ? "border-navy bg-navy/5" : "border-border hover:border-navy/40",
+                )}>
+                  <input type="checkbox" checked={selectedQuestions.includes(key)}
+                    onChange={() => toggleQuestion(key)} className="accent-navy" />
                   <span className="text-sm">{label}</span>
                 </label>
               ))}
             </div>
             {error && (
-              <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
+              <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
             )}
           </div>
         )}
 
-        {/* Footer */}
         <div className="flex justify-between gap-2 border-t border-border p-4">
           {step === 1 ? (
             <>
-              <button
-                onClick={onClose}
-                className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!form.title.trim() || !form.department}
-                onClick={() => setStep(2)}
-                className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy-deep disabled:opacity-60"
-              >
+              <button onClick={onClose} className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Cancel</button>
+              <button disabled={!form.title.trim() || !form.department} onClick={() => setStep(2)}
+                className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy-deep disabled:opacity-60">
                 Next: Screening questions →
               </button>
             </>
           ) : (
             <>
-              <button
-                onClick={() => setStep(1)}
-                className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={saving}
-                className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy-deep disabled:opacity-60"
-              >
+              <button onClick={() => setStep(1)} className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">← Back</button>
+              <button onClick={handleCreate} disabled={saving}
+                className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy-deep disabled:opacity-60">
                 {saving ? "Creating…" : "Create job"}
               </button>
             </>
@@ -478,6 +454,108 @@ function NewJobModal({
     </div>
   );
 }
+
+function EditJobModal({
+  job,
+  onClose,
+  onUpdated,
+}: {
+  job: JobPost;
+  onClose: () => void;
+  onUpdated: (job: JobPost) => void;
+}) {
+  const [form, setForm] = useState({
+    title: job.title,
+    department: job.department,
+    description: job.description,
+    requirements: job.requirements,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (field: string, value: string) =>
+    setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.department) {
+      setError("Title and department are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(`${API}/jobs/${job.id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      onUpdated(data.data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update job.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-navy-deep/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-lg border border-border bg-card shadow-elevated"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border p-5">
+          <h2 className="font-display text-lg font-semibold">Edit job</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Job title <span className="text-destructive">*</span>
+            </label>
+            <input value={form.title} onChange={(e) => set("title", e.target.value)}
+              className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Department <span className="text-destructive">*</span>
+            </label>
+            <select value={form.department} onChange={(e) => set("department", e.target.value)}
+              className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2">
+              <option value="">Select department…</option>
+              {DEPARTMENTS.map((d) => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">Description</label>
+            <textarea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)}
+              className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">Requirements</label>
+            <textarea rows={4} value={form.requirements} onChange={(e) => set("requirements", e.target.value)}
+              className="w-full resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2" />
+          </div>
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border p-4">
+          <button onClick={onClose} className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy-deep disabled:opacity-60">
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ApplicationsDrawer({
   jobId,
   jobTitle,
@@ -493,63 +571,45 @@ function ApplicationsDrawer({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-useEffect(() => {
-  authFetch(`${API}/jobs/${jobId}/applications/`)
-    .then((r) => r.json())
-    .then((d) => setApplications(d.data ?? []))
-    .finally(() => setLoading(false));
-}, [jobId]);
+  useEffect(() => {
+    authFetch(`${API}/jobs/${jobId}/applications/`)
+      .then((r) => r.json())
+      .then((d) => setApplications(d.data ?? []))
+      .finally(() => setLoading(false));
+  }, [jobId]);
 
   const filtered = applications.filter((app) => {
-  const q = search.toLowerCase();
-  return (
-    (app.first_name?.toLowerCase() ?? "").includes(q) ||
-    (app.last_name?.toLowerCase() ?? "").includes(q) ||
-    (app.full_name?.toLowerCase() ?? "").includes(q) ||
-    (app.email?.toLowerCase() ?? "").includes(q) ||
-    (app.phone?.toLowerCase() ?? "").includes(q)
-  );
-});
+    const q = search.toLowerCase();
+    return (
+      (app.first_name?.toLowerCase() ?? "").includes(q) ||
+      (app.last_name?.toLowerCase() ?? "").includes(q) ||
+      (app.full_name?.toLowerCase() ?? "").includes(q) ||
+      (app.email?.toLowerCase() ?? "").includes(q) ||
+      (app.phone?.toLowerCase() ?? "").includes(q)
+    );
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div
-        className="flex-1 bg-navy-deep/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="flex-1 bg-navy-deep/40 backdrop-blur-sm" onClick={onClose} />
       <div className="flex h-full w-full max-w-2xl flex-col bg-card shadow-elevated">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Applications
-            </div>
+            <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Applications</div>
             <h2 className="font-display text-lg font-semibold">{jobTitle}</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            ✕
-          </button>
+          <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground">✕</button>
         </div>
 
-        {/* Search */}
         <div className="border-b border-border px-6 py-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, email or phone…"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-ring focus:ring-2"
-          />
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-ring focus:ring-2" />
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {loading && (
-            <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-              Loading…
-            </div>
+            <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Loading…</div>
           )}
           {!loading && filtered.length === 0 && (
             <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
@@ -560,18 +620,14 @@ useEffect(() => {
             <div key={app.id} className="border-b border-border px-6 py-4 hover:bg-muted/40">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                 <div className="font-medium">
-                  {app.full_name || `${app.first_name} ${app.last_name}`}
-                  </div>
-                 <div className="text-xs text-muted-foreground">{app.email}</div>
-{app.phone && (
-  <div className="text-xs text-muted-foreground">{app.phone}</div>
-)}
-{app.dob && (
-  <div className="text-xs text-muted-foreground">
-    DOB: {new Date(app.dob).toLocaleDateString("en-GB")}
-  </div>
-)}
+                  <div className="font-medium">{app.full_name || `${app.first_name} ${app.last_name}`}</div>
+                  <div className="text-xs text-muted-foreground">{app.email}</div>
+                  {app.phone && <div className="text-xs text-muted-foreground">{app.phone}</div>}
+                  {app.dob && (
+                    <div className="text-xs text-muted-foreground">
+                      DOB: {new Date(app.dob).toLocaleDateString("en-GB")}
+                    </div>
+                  )}
                 </div>
                 <span className={cn(
                   "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
@@ -586,43 +642,20 @@ useEffect(() => {
               </div>
 
               <div className="mt-2 flex flex-wrap gap-3">
-                {app.linkedin && (
-                  <a href={app.linkedin} target="_blank" rel="noreferrer"
-                    className="text-xs text-navy hover:underline">LinkedIn</a>
-                )}
-                {app.twitter && (
-                  <a href={app.twitter} target="_blank" rel="noreferrer"
-                    className="text-xs text-navy hover:underline">Twitter</a>
-                )}
-                {app.instagram && (
-                  <a href={app.instagram} target="_blank" rel="noreferrer"
-                    className="text-xs text-navy hover:underline">Instagram</a>
-                )}
-                {app.tiktok && (
-                  <a href={app.tiktok} target="_blank" rel="noreferrer"
-                    className="text-xs text-navy hover:underline">TikTok</a>
-                )}
-                {app.github && (
-                  <a href={app.github} target="_blank" rel="noreferrer"
-                    className="text-xs text-navy hover:underline">GitHub</a>
-                )}
+                {app.linkedin && <a href={app.linkedin} target="_blank" rel="noreferrer" className="text-xs text-navy hover:underline">LinkedIn</a>}
+                {app.twitter && <a href={app.twitter} target="_blank" rel="noreferrer" className="text-xs text-navy hover:underline">Twitter</a>}
+                {app.instagram && <a href={app.instagram} target="_blank" rel="noreferrer" className="text-xs text-navy hover:underline">Instagram</a>}
+                {app.tiktok && <a href={app.tiktok} target="_blank" rel="noreferrer" className="text-xs text-navy hover:underline">TikTok</a>}
+                {app.github && <a href={app.github} target="_blank" rel="noreferrer" className="text-xs text-navy hover:underline">GitHub</a>}
               </div>
 
               <div className="mt-2 flex gap-2">
-                <a
-                  href={`https://pas-backend.oticgs.com${app.cv}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-md border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted"
-                >
+                <a href={`https://pas-backend.oticgs.com${app.cv}`} target="_blank" rel="noreferrer"
+                  className="rounded-md border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted">
                   View CV
                 </a>
-                <a
-                  href={`https://pas-backend.oticgs.com${app.cover_letter}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-md border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted"
-                >
+                <a href={`https://pas-backend.oticgs.com${app.cover_letter}`} target="_blank" rel="noreferrer"
+                  className="rounded-md border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted">
                   View Cover Letter
                 </a>
               </div>
@@ -633,23 +666,22 @@ useEffect(() => {
                   {app.ai_summary}
                 </div>
               )}
+
               {Object.keys(app.screening_answers ?? {}).length > 0 && (
-  <div className="mt-3 rounded-md bg-muted/50 p-3">
-    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-      Screening answers
-    </div>
-    <div className="space-y-1">
-      {Object.entries(app.screening_answers).map(([key, value]) => (
-        <div key={key} className="flex gap-2 text-xs">
-          <span className="font-medium capitalize text-foreground">
-            {key.replace(/_/g, " ")}:
-          </span>
-          <span className="text-muted-foreground">{value as string}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+                <div className="mt-3 rounded-md bg-muted/50 p-3">
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Screening answers
+                  </div>
+                  <div className="space-y-1">
+                    {Object.entries(app.screening_answers).map(([key, value]) => (
+                      <div key={key} className="flex gap-2 text-xs">
+                        <span className="font-medium capitalize text-foreground">{key.replace(/_/g, " ")}:</span>
+                        <span className="text-muted-foreground">{value as string}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
